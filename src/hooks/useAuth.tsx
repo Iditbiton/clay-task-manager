@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -88,8 +87,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             fetchUserProfile(currentUser.id).then(profile => {
               setUserProfile(profile);
               if (!profile) {
-                console.error("Critical: User is authenticated but profile data is missing. Forcing sign out.");
-                signOut();
+                console.warn("User authenticated, but profile data is missing. This might happen if the database trigger is slow or failed. The app might not function correctly without a profile.");
+                // Forcing a sign-out here was causing a login loop. Disabling it to allow debugging.
+                // signOut();
               }
             }).finally(() => {
                 setLoading(false);
