@@ -30,12 +30,14 @@ export function OrganizationSelector({ onOrganizationSelect }: OrganizationSelec
   const { toast } = useToast();
 
   useEffect(() => {
+    console.log('userProfile:', userProfile);
     if (userProfile) {
       fetchOrganizations();
     }
   }, [userProfile]);
 
   const fetchOrganizations = async () => {
+    console.log('Fetching organizations for user:', userProfile?.id);
     try {
       const { data, error } = await supabase
         .from('organization_user')
@@ -51,6 +53,7 @@ export function OrganizationSelector({ onOrganizationSelect }: OrganizationSelec
         `)
         .eq('user_id', userProfile?.id);
 
+      console.log('Organizations query result:', { data, error });
       if (error) throw error;
       
       const orgsWithRole = data?.map(item => ({
@@ -58,6 +61,7 @@ export function OrganizationSelector({ onOrganizationSelect }: OrganizationSelec
         role: item.role
       })) || [];
       
+      console.log('Processed organizations:', orgsWithRole);
       setOrganizations(orgsWithRole);
     } catch (error) {
       console.error('Error fetching organizations:', error);
@@ -72,10 +76,15 @@ export function OrganizationSelector({ onOrganizationSelect }: OrganizationSelec
   };
 
   const createOrganization = async () => {
-    if (!newOrgName.trim() || !userProfile) return;
+    if (!newOrgName.trim() || !userProfile) {
+      console.log('Missing data:', { newOrgName: newOrgName.trim(), userProfile });
+      return;
+    }
     
     setCreating(true);
     try {
+      console.log('Creating organization with user ID:', userProfile.id);
+      
       // Create organization
       const { data: org, error: orgError } = await supabase
         .from('organizations')
@@ -86,6 +95,7 @@ export function OrganizationSelector({ onOrganizationSelect }: OrganizationSelec
         .select()
         .single();
 
+      console.log('Organization creation result:', { org, orgError });
       if (orgError) throw orgError;
 
       // Add user as owner
@@ -97,6 +107,7 @@ export function OrganizationSelector({ onOrganizationSelect }: OrganizationSelec
           role: 'owner'
         });
 
+      console.log('User-organization link result:', { userOrgError });
       if (userOrgError) throw userOrgError;
 
       toast({
@@ -136,6 +147,11 @@ export function OrganizationSelector({ onOrganizationSelect }: OrganizationSelec
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">בחר ארגון</h1>
           <p className="text-gray-600">בחר ארגון קיים או צור ארגון חדש</p>
+          {userProfile && (
+            <p className="text-sm text-gray-500 mt-2">
+              משתמש: {userProfile.email} (ID: {userProfile.id})
+            </p>
+          )}
         </div>
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">

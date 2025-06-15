@@ -23,6 +23,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchUserProfile = async (userId: string) => {
+    console.log('Fetching user profile for:', userId);
     try {
       const { data, error } = await supabase
         .from('users')
@@ -30,8 +31,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .eq('supabase_uid', userId)
         .single();
       
+      console.log('User profile query result:', { data, error });
+      
       if (error) {
         console.error('Error fetching user profile:', error);
+        
+        // If user doesn't exist, try to create it
+        if (error.code === 'PGRST116') {
+          console.log('User profile not found, creating...');
+          const { data: userData, error: userError } = await supabase.auth.getUser();
+          
+          if (userData.user && !userError) {
+            const { data: newUser, error: createError } = await supabase
+              .from('users')
+              .insert({
+                supabase_uid: userData.user.id,
+                email: userData.user.email!,
+                name: userData.user.user_metadata?.name || ''
+              })
+              .select()
+              .single();
+              
+            console.log('Created new user profile:', { newUser, createError });
+            
+            if (!createError && newUser) {
+              setUserProfile(newUser);
+            }
+          }
+        }
         return;
       }
       
