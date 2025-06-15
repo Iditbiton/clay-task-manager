@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -42,28 +43,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     window.location.href = '/auth';
   };
 
-  const fetchUserProfile = async (userId: string, retries = 5, delay = 300): Promise<UserProfile | null> => {
-    console.log(`Fetching user profile for user ID: ${userId}, attempt: ${6 - retries}`);
+  const fetchUserProfile = async (user: User): Promise<UserProfile | null> => {
+    console.log(`Fetching or creating user profile for user ID: ${user.id}`);
     try {
-      const { data, error } = await supabase
+      // First, try to fetch the existing profile
+      const { data: existingProfile, error: fetchError } = await supabase
         .from('users')
         .select('*')
-        .eq('supabase_uid', userId)
+        .eq('supabase_uid', user.id)
+        .maybeSingle();
+
+      if (fetchError) {
+        console.error('Error fetching user profile:', fetchError);
+        return null;
+      }
+
+      if (existingProfile) {
+        console.log('Successfully fetched existing user profile:', existingProfile);
+        return existingProfile;
+      }
+
+      // If profile does not exist, create it
+      console.log(`User profile not found for ${user.id}, attempting to create one.`);
+      const { data: newProfile, error: insertError } = await supabase
+        .from('users')
+        .insert({
+          supabase_uid: user.id,
+          email: user.email,
+          name: user.user_metadata?.name || '',
+        })
+        .select()
         .single();
       
-      if (error) {
-        if (error.code === 'PGRST116' && retries > 0) { // PGRST116 is 'not found'
-          console.log(`User profile not found, retrying in ${delay}ms... (${retries - 1} retries left)`);
-          await new Promise(res => setTimeout(res, delay));
-          return fetchUserProfile(userId, retries - 1, delay * 1.5);
-        } else {
-          console.error('Final error fetching user profile:', error);
-          return null;
-        }
+      if (insertError) {
+        console.error('Error creating user profile:', insertError);
+        return null;
       }
-      
-      console.log('Successfully fetched user profile:', data);
-      return data;
+
+      console.log('Successfully created and fetched new user profile:', newProfile);
+      return newProfile;
     } catch (catchError) {
       console.error('Exception in fetchUserProfile:', catchError);
       return null;
@@ -84,12 +102,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (currentUser) {
           // Defer Supabase calls with setTimeout to avoid deadlocks
           setTimeout(() => {
-            fetchUserProfile(currentUser.id).then(profile => {
+            fetchUserProfile(currentUser).then(profile => {
               setUserProfile(profile);
               if (!profile) {
-                console.warn("User authenticated, but profile data is missing. This might happen if the database trigger is slow or failed. The app might not function correctly without a profile.");
-                // Forcing a sign-out here was causing a login loop. Disabling it to allow debugging.
-                // signOut();
+                console.warn("User authenticated, but profile data is missing and could not be created. The app might not function correctly without a profile.");
               }
             }).finally(() => {
                 setLoading(false);
