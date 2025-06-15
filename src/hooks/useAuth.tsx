@@ -16,6 +16,15 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+export const cleanupAuthState = () => {
+  console.log('Cleaning up auth state from localStorage...');
+  Object.keys(localStorage).forEach((key) => {
+    if (key.startsWith('supabase.auth.') || key.includes('sb-')) {
+      localStorage.removeItem(key);
+    }
+  });
+};
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -53,18 +62,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     try {
-      // Clean up localStorage
-      Object.keys(localStorage).forEach((key) => {
-        if (key.startsWith('supabase.auth.') || key.includes('sb-')) {
-          localStorage.removeItem(key);
-        }
-      });
-      
+      cleanupAuthState();
+      // Attempt global sign out, but continue if it fails.
       await supabase.auth.signOut({ scope: 'global' });
-      window.location.href = '/auth';
     } catch (error) {
-      console.error('Error signing out:', error);
+      console.error('Error during sign out, continuing with redirect...', error);
     }
+    // ALWAYS redirect to ensure a clean state.
+    window.location.href = '/auth';
   };
 
   useEffect(() => {
