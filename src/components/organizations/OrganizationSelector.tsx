@@ -32,7 +32,6 @@ export function OrganizationSelector({ onOrganizationSelect }: OrganizationSelec
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
-    console.log('userProfile:', userProfile);
     if (userProfile) {
       fetchOrganizations();
     }
@@ -78,6 +77,17 @@ export function OrganizationSelector({ onOrganizationSelect }: OrganizationSelec
   };
 
   const createOrganization = async () => {
+    // --- Explicit user/session checks ---
+    if (!user || !userProfile || !session) {
+      toast({
+        variant: "destructive",
+        title: "עליך להתחבר",
+        description: "יש להתחבר לפני שניתן ליצור או לנהל ארגון.",
+      });
+      setCreating(false);
+      return;
+    }
+    // Existing checks
     if (!newOrgName.trim() || !userProfile) {
       console.log('Cannot create organization. Missing data:', {
         newOrgName: newOrgName.trim(),
@@ -88,6 +98,7 @@ export function OrganizationSelector({ onOrganizationSelect }: OrganizationSelec
         title: "שגיאה",
         description: "פרטי המשתמש או שם הארגון חסרים",
       });
+      setCreating(false);
       return;
     }
 
@@ -97,6 +108,7 @@ export function OrganizationSelector({ onOrganizationSelect }: OrganizationSelec
         title: "שגיאת זיהוי משתמש",
         description: "לא ניתן לאשר את המשתמש מול supabase_uid",
       });
+      setCreating(false);
       return;
     }
 
@@ -106,6 +118,7 @@ export function OrganizationSelector({ onOrganizationSelect }: OrganizationSelec
         title: "אי התאמה בזיהוי משתמש",
         description: `supabase_uid מהפרופיל (${userProfile.supabase_uid}) שונה מזה של המשתמש (${user.id}) - לא ניתן ליצור ארגון. אנא פנה למנהל מערכת.`,
       });
+      setCreating(false);
       return;
     }
 
@@ -168,6 +181,22 @@ export function OrganizationSelector({ onOrganizationSelect }: OrganizationSelec
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
           <p className="mt-2 text-gray-600">טוען ארגונים...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Block view if not authenticated
+  if (!userProfile || !user || !session) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-xl text-red-600 font-semibold mb-4">
+            עליך להתחבר כדי לצפות וליצור ארגונים.
+          </p>
+          <a href="/auth" className="text-blue-600 underline">
+            מעבר למסך התחברות
+          </a>
         </div>
       </div>
     );
