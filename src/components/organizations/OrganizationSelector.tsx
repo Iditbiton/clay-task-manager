@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -77,14 +76,25 @@ export function OrganizationSelector({ onOrganizationSelect }: OrganizationSelec
 
   const createOrganization = async () => {
     if (!newOrgName.trim() || !userProfile) {
-      console.log('Missing data:', { newOrgName: newOrgName.trim(), userProfile });
+      console.log('Cannot create organization. Missing data:', {
+        newOrgName: newOrgName.trim(),
+        userProfile,
+      });
+      toast({
+        variant: "destructive",
+        title: "שגיאה",
+        description: "פרטי המשתמש או שם הארגון חסרים",
+      });
       return;
     }
     
     setCreating(true);
+    console.log('Attempting to create organization...');
+    console.log('Organization Name:', newOrgName.trim());
+    console.log('Full userProfile object:', JSON.stringify(userProfile, null, 2));
+    console.log('Owner ID to be sent:', userProfile.id);
+
     try {
-      console.log('Creating organization with user ID:', userProfile.id);
-      
       // Create organization
       const { data: org, error: orgError } = await supabase
         .from('organizations')
@@ -98,6 +108,7 @@ export function OrganizationSelector({ onOrganizationSelect }: OrganizationSelec
       console.log('Organization creation result:', { org, orgError });
       if (orgError) throw orgError;
 
+      console.log('Organization created successfully, now linking user...');
       // Add user as owner
       const { error: userOrgError } = await supabase
         .from('organization_user')
@@ -122,7 +133,7 @@ export function OrganizationSelector({ onOrganizationSelect }: OrganizationSelec
       console.error('Error creating organization:', error);
       toast({
         variant: "destructive",
-        title: "שגיאה",
+        title: "שגיאה ביצירת ארגון",
         description: error.message || "לא ניתן ליצור את הארגון",
       });
     } finally {
