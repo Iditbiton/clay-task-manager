@@ -11,10 +11,9 @@ import { Plus, Building } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Organization = Tables<'organizations'>;
-type OrganizationUser = Tables<'organization_user'>;
 
 interface OrganizationWithRole extends Organization {
-  organization_user: OrganizationUser[];
+  role: string;
 }
 
 interface OrganizationSelectorProps {
@@ -39,18 +38,27 @@ export function OrganizationSelector({ onOrganizationSelect }: OrganizationSelec
   const fetchOrganizations = async () => {
     try {
       const { data, error } = await supabase
-        .from('organizations')
+        .from('organization_user')
         .select(`
-          *,
-          organization_user!inner (
-            role,
-            user_id
+          role,
+          organizations (
+            id,
+            name,
+            owner_id,
+            created_at,
+            updated_at
           )
         `)
-        .eq('organization_user.user_id', userProfile?.id);
+        .eq('user_id', userProfile?.id);
 
       if (error) throw error;
-      setOrganizations(data || []);
+      
+      const orgsWithRole = data?.map(item => ({
+        ...(item.organizations as Organization),
+        role: item.role
+      })) || [];
+      
+      setOrganizations(orgsWithRole);
     } catch (error) {
       console.error('Error fetching organizations:', error);
       toast({
@@ -139,7 +147,7 @@ export function OrganizationSelector({ onOrganizationSelect }: OrganizationSelec
                   {org.name}
                 </CardTitle>
                 <CardDescription>
-                  תפקיד: {org.organization_user[0]?.role === 'owner' ? 'בעלים' : 'חבר'}
+                  תפקיד: {org.role === 'owner' ? 'בעלים' : 'חבר'}
                 </CardDescription>
               </CardHeader>
               <CardContent>

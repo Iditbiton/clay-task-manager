@@ -6,13 +6,26 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Calendar, User, Building, Tag } from 'lucide-react';
-import type { Tables } from '@/integrations/supabase/types';
 
-type Task = Tables<'tasks'> & {
-  clients?: Tables<'clients'> | null;
-  categories?: Tables<'categories'> | null;
-  users?: Tables<'users'> | null;
-};
+interface TaskData {
+  id: string;
+  name: string;
+  description: string | null;
+  status: string;
+  due_datetime: string | null;
+  notes: string | null;
+  created_at: string;
+  clients?: {
+    name: string;
+  } | null;
+  categories?: {
+    name: string;
+  } | null;
+  users?: {
+    name: string | null;
+    email: string;
+  } | null;
+}
 
 interface TaskListProps {
   organizationId: string;
@@ -20,7 +33,7 @@ interface TaskListProps {
 }
 
 export function TaskList({ organizationId, onCreateTask }: TaskListProps) {
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [tasks, setTasks] = useState<TaskData[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
@@ -33,7 +46,13 @@ export function TaskList({ organizationId, onCreateTask }: TaskListProps) {
       const { data, error } = await supabase
         .from('tasks')
         .select(`
-          *,
+          id,
+          name,
+          description,
+          status,
+          due_datetime,
+          notes,
+          created_at,
           clients (name),
           categories (name),
           users (name, email)
