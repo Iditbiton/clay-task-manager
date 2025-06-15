@@ -31,7 +31,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const fetchUserProfile = async (userId: string, retries = 5, delay = 300) => {
+  const signOut = async () => {
+    try {
+      cleanupAuthState();
+      // Attempt global sign out, but continue if it fails.
+      await supabase.auth.signOut({ scope: 'global' });
+    } catch (error) {
+      console.error('Error during sign out, continuing with redirect...', error);
+    }
+    // ALWAYS redirect to ensure a clean state.
+    window.location.href = '/auth';
+  };
+
+  const fetchUserProfile = async (userId: string, retries = 5, delay = 300): Promise<UserProfile | null> => {
     console.log(`Fetching user profile for user ID: ${userId}, attempt: ${6 - retries}`);
     try {
       const { data, error } = await supabase
@@ -47,29 +59,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return fetchUserProfile(userId, retries - 1, delay * 1.5);
         } else {
           console.error('Final error fetching user profile:', error);
-          setUserProfile(null);
-          return;
+          return null;
         }
       }
       
       console.log('Successfully fetched user profile:', data);
-      setUserProfile(data);
+      return data;
     } catch (catchError) {
       console.error('Exception in fetchUserProfile:', catchError);
-      setUserProfile(null);
+      return null;
     }
-  };
-
-  const signOut = async () => {
-    try {
-      cleanupAuthState();
-      // Attempt global sign out, but continue if it fails.
-      await supabase.auth.signOut({ scope: 'global' });
-    } catch (error) {
-      console.error('Error during sign out, continuing with redirect...', error);
-    }
-    // ALWAYS redirect to ensure a clean state.
-    window.location.href = '/auth';
   };
 
   useEffect(() => {
@@ -86,7 +85,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (currentUser) {
           // Defer Supabase calls with setTimeout to avoid deadlocks
           setTimeout(() => {
-            fetchUserProfile(currentUser.id).finally(() => {
+            fetchUserProfile(currentUser.id).then(profile => {
+              setUserProfile(profile);
+              if (!profile) {
+                console.error("Critical: User is authenticated but profile data is missing. Forcing sign out.");
+                signOut();
+              }
+            }).finally(() => {
                 setLoading(false);
             });
           }, 0);
