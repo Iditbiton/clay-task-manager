@@ -8,6 +8,8 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Building } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
+import { OrganizationList } from './OrganizationList';
+import { NewOrganizationCard } from './NewOrganizationCard';
 
 type Organization = Tables<'organizations'>;
 
@@ -183,81 +185,16 @@ export function OrganizationSelector({ onOrganizationSelect }: OrganizationSelec
             </p>
           )}
         </div>
-
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {organizations.map((org) => (
-            <Card key={org.id} className="cursor-pointer hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Building className="h-5 w-5" />
-                  {org.name}
-                </CardTitle>
-                <CardDescription>
-                  תפקיד: {org.role === 'owner' ? 'בעלים' : 'חבר'}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button 
-                  onClick={() => onOrganizationSelect(org.id)}
-                  className="w-full"
-                >
-                  בחר ארגון זה
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
-
-          <Card className="border-dashed border-2 border-gray-300">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-gray-600">
-                <Plus className="h-5 w-5" />
-                ארגון חדש
-              </CardTitle>
-              <CardDescription>צור ארגון חדש</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {!showCreateForm ? (
-                <Button 
-                  variant="outline" 
-                  onClick={() => setShowCreateForm(true)}
-                  className="w-full"
-                >
-                  צור ארגון חדש
-                </Button>
-              ) : (
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="orgName">שם הארגון</Label>
-                    <Input
-                      id="orgName"
-                      value={newOrgName}
-                      onChange={(e) => setNewOrgName(e.target.value)}
-                      placeholder="הכנס שם ארגון"
-                    />
-                  </div>
-                  <div className="flex gap-2">
-                    <Button 
-                      onClick={createOrganization} 
-                      disabled={creating || !newOrgName.trim()}
-                      size="sm"
-                    >
-                      צור
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      onClick={() => {
-                        setShowCreateForm(false);
-                        setNewOrgName('');
-                      }}
-                      size="sm"
-                    >
-                      ביטול
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <OrganizationList organizations={organizations} onOrganizationSelect={onOrganizationSelect} />
+          <NewOrganizationCard
+            creating={creating}
+            showCreateForm={showCreateForm}
+            setShowCreateForm={setShowCreateForm}
+            newOrgName={newOrgName}
+            setNewOrgName={setNewOrgName}
+            onCreate={createOrganization}
+          />
         </div>
       </div>
     </div>
