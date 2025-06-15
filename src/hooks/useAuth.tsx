@@ -22,6 +22,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const createUserProfile = async (userId: string, email: string, name?: string) => {
+    console.log('Creating user profile for:', userId, email);
+    try {
+      const { data: newUser, error: createError } = await supabase
+        .from('users')
+        .insert({
+          supabase_uid: userId,
+          email: email,
+          name: name || ''
+        })
+        .select()
+        .single();
+        
+      console.log('Created new user profile:', { newUser, createError });
+      
+      if (!createError && newUser) {
+        setUserProfile(newUser);
+        return newUser;
+      } else {
+        console.error('Failed to create user profile:', createError);
+        return null;
+      }
+    } catch (error) {
+      console.error('Error creating user profile:', error);
+      return null;
+    }
+  };
+
   const fetchUserProfile = async (userId: string) => {
     console.log('Fetching user profile for:', userId);
     try {
@@ -38,25 +66,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         // If user doesn't exist, try to create it
         if (error.code === 'PGRST116') {
-          console.log('User profile not found, creating...');
+          console.log('User profile not found, attempting to create...');
           const { data: userData, error: userError } = await supabase.auth.getUser();
           
           if (userData.user && !userError) {
-            const { data: newUser, error: createError } = await supabase
-              .from('users')
-              .insert({
-                supabase_uid: userData.user.id,
-                email: userData.user.email!,
-                name: userData.user.user_metadata?.name || ''
-              })
-              .select()
-              .single();
-              
-            console.log('Created new user profile:', { newUser, createError });
-            
-            if (!createError && newUser) {
-              setUserProfile(newUser);
-            }
+            await createUserProfile(
+              userData.user.id,
+              userData.user.email!,
+              userData.user.user_metadata?.name
+            );
           }
         }
         return;
