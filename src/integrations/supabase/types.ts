@@ -144,6 +144,96 @@ export type Database = {
           },
         ]
       }
+      tasks: {
+        Row: {
+          assigned_to_user_id: string | null
+          category_id: string | null
+          client_id: string | null
+          color_hex: string | null
+          created_at: string
+          description: string | null
+          due_datetime: string | null
+          id: string
+          is_ongoing: boolean | null
+          name: string
+          notes: string | null
+          organization_id: string
+          parent_task_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to_user_id?: string | null
+          category_id?: string | null
+          client_id?: string | null
+          color_hex?: string | null
+          created_at?: string
+          description?: string | null
+          due_datetime?: string | null
+          id?: string
+          is_ongoing?: boolean | null
+          name: string
+          notes?: string | null
+          organization_id: string
+          parent_task_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to_user_id?: string | null
+          category_id?: string | null
+          client_id?: string | null
+          color_hex?: string | null
+          created_at?: string
+          description?: string | null
+          due_datetime?: string | null
+          id?: string
+          is_ongoing?: boolean | null
+          name?: string
+          notes?: string | null
+          organization_id?: string
+          parent_task_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_assigned_to_user_id_fkey"
+            columns: ["assigned_to_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_category_id_fkey"
+            columns: ["category_id"]
+            isOneToOne: false
+            referencedRelation: "categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_parent_task_id_fkey"
+            columns: ["parent_task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       users: {
         Row: {
           created_at: string
