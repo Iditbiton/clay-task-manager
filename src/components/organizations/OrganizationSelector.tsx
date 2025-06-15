@@ -20,13 +20,14 @@ interface OrganizationSelectorProps {
 }
 
 export function OrganizationSelector({ onOrganizationSelect }: OrganizationSelectorProps) {
+  const { userProfile, user, session } = useAuth();
+  const { toast } = useToast();
+
   const [organizations, setOrganizations] = useState<OrganizationWithRole[]>([]);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newOrgName, setNewOrgName] = useState('');
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
-  const { userProfile } = useAuth();
-  const { toast } = useToast();
 
   useEffect(() => {
     console.log('userProfile:', userProfile);
@@ -87,15 +88,33 @@ export function OrganizationSelector({ onOrganizationSelect }: OrganizationSelec
       });
       return;
     }
-    
+
+    if (!user || !userProfile.supabase_uid) {
+      toast({
+        variant: "destructive",
+        title: "שגיאת זיהוי משתמש",
+        description: "לא ניתן לאשר את המשתמש מול supabase_uid",
+      });
+      return;
+    }
+
+    if (userProfile.supabase_uid !== user.id) {
+      toast({
+        variant: "destructive",
+        title: "אי התאמה בזיהוי משתמש",
+        description: `supabase_uid מהפרופיל (${userProfile.supabase_uid}) שונה מזה של המשתמש (${user.id}) - לא ניתן ליצור ארגון. אנא פנה למנהל מערכת.`,
+      });
+      return;
+    }
+
     setCreating(true);
-    console.log('Attempting to create organization...');
-    console.log('Organization Name:', newOrgName.trim());
-    console.log('Full userProfile object:', JSON.stringify(userProfile, null, 2));
-    console.log('Owner ID to be sent:', userProfile.id);
+    console.log('[CREATE ORG] newOrgName:', newOrgName);
+    console.log('[CREATE ORG] userProfile:', userProfile);
+    console.log('[CREATE ORG] user.id (from supabase):', user.id);
+    console.log('[CREATE ORG] userProfile.id:', userProfile.id, ', userProfile.supabase_uid:', userProfile.supabase_uid);
 
     try {
-      // Create organization
+      // כאן הכי חשוב: owner_id = userProfile.id
       const { data: org, error: orgError } = await supabase
         .from('organizations')
         .insert({
