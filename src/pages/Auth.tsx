@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth, cleanupAuthState } from '@/hooks/useAuth';
@@ -14,6 +15,7 @@ export default function Auth() {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [signupSuccess, setSignupSuccess] = useState(false);
   const { user } = useAuth();
   const { toast } = useToast();
 
@@ -68,10 +70,7 @@ export default function Auth() {
 
         if (error) throw error;
 
-        toast({
-          title: "נרשמת בהצלחה!",
-          description: "אימייל אישור נשלח אליך. אנא בדוק את תיבת הדואר שלך.",
-        });
+        setSignupSuccess(true);
       }
     } catch (error: any) {
       console.error('Auth error:', error);
@@ -90,74 +89,103 @@ export default function Auth() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold">
-            {isLogin ? 'התחברות' : 'הרשמה'}
+            {signupSuccess ? 'ההרשמה כמעט הושלמה' : (isLogin ? 'התחברות' : 'הרשמה')}
           </CardTitle>
           <CardDescription>
-            {isLogin 
-              ? 'התחבר למערכת ניהול המשימות' 
-              : 'צור חשבון חדש במערכת ניהול המשימות'
+            {signupSuccess 
+              ? 'שלחנו לך מייל לאימות החשבון' 
+              : (isLogin 
+                  ? 'התחבר למערכת ניהול המשימות' 
+                  : 'צור חשבון חדש במערכת ניהול המשימות'
+                )
             }
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {!isLogin && (
-              <div className="space-y-2">
-                <Label htmlFor="name">שם מלא</Label>
-                <Input
-                  id="name"
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  required={!isLogin}
-                  placeholder="הכנס את שמך המלא"
-                />
+          {signupSuccess ? (
+            <div className="text-center space-y-4 py-4">
+              <h3 className="text-xl font-semibold">אנא בדוק את תיבת המייל שלך</h3>
+              <p className="text-gray-600">
+                שלחנו קישור אימות לכתובת <strong>{email}</strong>.
+              </p>
+              <p className="text-gray-600">
+                יש ללחוץ על הקישור כדי להפעיל את חשבונך. לאחר האימות, תוכל להתחבר.
+              </p>
+              <Button 
+                onClick={() => {
+                  setSignupSuccess(false);
+                  setIsLogin(true);
+                }}
+                className="w-full"
+              >
+                חזרה למסך ההתחברות
+              </Button>
+            </div>
+          ) : (
+            <>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                {!isLogin && (
+                  <div className="space-y-2">
+                    <Label htmlFor="name">שם מלא</Label>
+                    <Input
+                      id="name"
+                      type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      required={!isLogin}
+                      placeholder="הכנס את שמך המלא"
+                    />
+                  </div>
+                )}
+                
+                <div className="space-y-2">
+                  <Label htmlFor="email">אימייל</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    placeholder="הכנס את כתובת האימייל שלך"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="password">סיסמה</Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    placeholder="הכנס סיסמה"
+                    minLength={6}
+                  />
+                </div>
+                
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  {isLogin ? 'התחבר' : 'הירשם'}
+                </Button>
+              </form>
+              
+              <div className="mt-4 text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsLogin(!isLogin);
+                    setSignupSuccess(false);
+                  }}
+                  className="text-sm text-blue-600 hover:underline"
+                >
+                  {isLogin 
+                    ? 'אין לך חשבון? הירשם כאן' 
+                    : 'יש לך כבר חשבון? התחבר כאן'
+                  }
+                </button>
               </div>
-            )}
-            
-            <div className="space-y-2">
-              <Label htmlFor="email">אימייל</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                placeholder="הכנס את כתובת האימייל שלך"
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="password">סיסמה</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                placeholder="הכנס סיסמה"
-                minLength={6}
-              />
-            </div>
-            
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isLogin ? 'התחבר' : 'הירשם'}
-            </Button>
-          </form>
-          
-          <div className="mt-4 text-center">
-            <button
-              type="button"
-              onClick={() => setIsLogin(!isLogin)}
-              className="text-sm text-blue-600 hover:underline"
-            >
-              {isLogin 
-                ? 'אין לך חשבון? הירשם כאן' 
-                : 'יש לך כבר חשבון? התחבר כאן'
-              }
-            </button>
-          </div>
+            </>
+          )}
         </CardContent>
       </Card>
     </div>
