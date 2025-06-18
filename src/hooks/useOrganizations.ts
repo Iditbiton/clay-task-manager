@@ -82,7 +82,6 @@ export function useOrganizations() {
 
   const createOrganization = async (newOrgName: string) => {
     if (!user || !userProfile || !session) {
-      console.error('[CREATE ORG] Missing auth data:', { user: !!user, userProfile: !!userProfile, session: !!session });
       toast({
         variant: "destructive",
         title: "עליך להתחבר",
@@ -101,73 +100,43 @@ export function useOrganizations() {
     }
 
     setCreating(true);
-    console.log('[CREATE ORG] Starting organization creation...');
-    console.log('[CREATE ORG] Organization name:', newOrgName);
-    console.log('[CREATE ORG] User profile ID:', userProfile.id);
-    console.log('[CREATE ORG] Supabase UID:', user.id);
+    console.log('[CREATE ORG] Creating organization:', newOrgName);
 
     try {
       // Generate UUID for the organization
       const newOrgId = generateUuid();
-      console.log('[CREATE ORG] Generated org ID:', newOrgId);
 
       // Step 1: Create the organization
-      console.log('[CREATE ORG] Step 1: Creating organization record...');
       const { data: orgData, error: orgError } = await supabase
         .from('organizations')
         .insert({
           id: newOrgId,
           name: newOrgName.trim(),
-          owner_id: userProfile.id  // This should match get_user_id() function result
+          owner_id: userProfile.id
         })
         .select()
         .single();
-
-      console.log('[CREATE ORG] Organization creation result:', { 
-        success: !orgError, 
-        data: orgData, 
-        error: orgError,
-        errorDetails: orgError ? {
-          message: orgError.message,
-          details: orgError.details,
-          hint: orgError.hint,
-          code: orgError.code
-        } : null
-      });
       
       if (orgError) {
         console.error('[CREATE ORG] Failed to create organization:', orgError);
         throw new Error(`יצירת ארגון נכשלה: ${orgError.message}`);
       }
 
-      console.log('[CREATE ORG] Organization created successfully:', orgData);
+      console.log('[CREATE ORG] Organization created successfully');
       
       // Step 2: Add user as owner in organization_user
-      console.log('[CREATE ORG] Step 2: Creating user-organization link...');
       const { error: userOrgError } = await supabase
         .from('organization_user')
         .insert({
           organization_id: newOrgId,
-          user_id: userProfile.id,  // This should match get_user_id() function result
+          user_id: userProfile.id,
           role: 'owner'
         });
-
-      console.log('[CREATE ORG] User-organization link result:', { 
-        success: !userOrgError, 
-        error: userOrgError,
-        errorDetails: userOrgError ? {
-          message: userOrgError.message,
-          details: userOrgError.details,
-          hint: userOrgError.hint,
-          code: userOrgError.code
-        } : null
-      });
       
       if (userOrgError) {
         console.error('[CREATE ORG] Failed to create user-organization link:', userOrgError);
         
         // Try to clean up the organization if membership creation failed
-        console.log('[CREATE ORG] Cleaning up organization due to failed membership creation...');
         const { error: cleanupError } = await supabase
           .from('organizations')
           .delete()

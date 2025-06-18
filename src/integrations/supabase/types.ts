@@ -269,6 +269,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      current_app_user_id: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
       get_user_id: {
         Args: Record<PropertyKey, never>
         Returns: string
