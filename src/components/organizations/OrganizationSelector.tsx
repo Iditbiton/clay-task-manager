@@ -130,16 +130,20 @@ export function OrganizationSelector({ onOrganizationSelect }: OrganizationSelec
 
     try {
       // כאן הכי חשוב: owner_id = userProfile.id
-      const { data: org, error: orgError } = await supabase
+      // RLS policies block returning the inserted row when the user is not yet
+      // linked in organization_user. Generate the ID client-side so we can
+      // create the membership after inserting.
+      const newOrgId = crypto.randomUUID();
+
+      const { error: orgError } = await supabase
         .from('organizations')
         .insert({
+          id: newOrgId,
           name: newOrgName.trim(),
           owner_id: userProfile.id
-        })
-        .select()
-        .single();
+        });
 
-      console.log('Organization creation result:', { org, orgError });
+      console.log('Organization creation result:', { orgError });
       if (orgError) throw orgError;
 
       console.log('Organization created successfully, now linking user...');
@@ -147,7 +151,7 @@ export function OrganizationSelector({ onOrganizationSelect }: OrganizationSelec
       const { error: userOrgError } = await supabase
         .from('organization_user')
         .insert({
-          organization_id: org.id,
+          organization_id: newOrgId,
           user_id: userProfile.id,
           role: 'owner'
         });
