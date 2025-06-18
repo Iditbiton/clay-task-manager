@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -96,76 +97,54 @@ export function OrganizationSelector({ onOrganizationSelect }: OrganizationSelec
   };
 
   const createOrganization = async () => {
-    // --- Explicit user/session checks ---
     if (!user || !userProfile || !session) {
       toast({
         variant: "destructive",
         title: "עליך להתחבר",
         description: "יש להתחבר לפני שניתן ליצור או לנהל ארגון.",
       });
-      setCreating(false);
       return;
     }
-    // Existing checks
-    if (!newOrgName.trim() || !userProfile) {
-      console.log('Cannot create organization. Missing data:', {
-        newOrgName: newOrgName.trim(),
-        userProfile,
-      });
+
+    if (!newOrgName.trim()) {
       toast({
         variant: "destructive",
         title: "שגיאה",
-        description: "פרטי המשתמש או שם הארגון חסרים",
+        description: "אנא הכנס שם ארגון",
       });
-      setCreating(false);
-      return;
-    }
-
-    if (!user || !userProfile.supabase_uid) {
-      toast({
-        variant: "destructive",
-        title: "שגיאת זיהוי משתמש",
-        description: "לא ניתן לאשר את המשתמש מול supabase_uid",
-      });
-      setCreating(false);
-      return;
-    }
-
-    if (userProfile.supabase_uid !== user.id) {
-      toast({
-        variant: "destructive",
-        title: "אי התאמה בזיהוי משתמש",
-        description: `supabase_uid מהפרופיל (${userProfile.supabase_uid}) שונה מזה של המשתמש (${user.id}) - לא ניתן ליצור ארגון. אנא פנה למנהל מערכת.`,
-      });
-      setCreating(false);
       return;
     }
 
     setCreating(true);
-    console.log('[CREATE ORG] newOrgName:', newOrgName);
-    console.log('[CREATE ORG] userProfile:', userProfile);
-    console.log('[CREATE ORG] user.id (from supabase):', user.id);
-    console.log('[CREATE ORG] userProfile.id:', userProfile.id, ', userProfile.supabase_uid:', userProfile.supabase_uid);
+    console.log('[CREATE ORG] Creating organization with name:', newOrgName);
+    console.log('[CREATE ORG] User profile:', userProfile);
+    console.log('[CREATE ORG] User from auth:', user);
 
     try {
-      // RLS policies block returning the inserted row when the user is not yet
-      // linked in organization_user. Generate the ID client-side so we can
-      // create the membership after inserting.
+      // Generate UUID for the organization
       const newOrgId = generateUuid();
+      console.log('[CREATE ORG] Generated org ID:', newOrgId);
 
-      const { error: orgError } = await supabase
+      // Create the organization
+      const { data: orgData, error: orgError } = await supabase
         .from('organizations')
         .insert({
           id: newOrgId,
           name: newOrgName.trim(),
           owner_id: userProfile.id
-        });
+        })
+        .select()
+        .single();
 
-      console.log('Organization creation result:', { orgError });
-      if (orgError) throw orgError;
+      console.log('[CREATE ORG] Organization creation result:', { orgData, orgError });
+      if (orgError) {
+        console.error('[CREATE ORG] Failed to create organization:', orgError);
+        throw orgError;
+      }
 
-      console.log('Organization created successfully, now linking user...');
-      // Add user as owner
+      console.log('[CREATE ORG] Organization created successfully, now creating membership...');
+      
+      // Add user as owner in organization_user
       const { error: userOrgError } = await supabase
         .from('organization_user')
         .insert({
@@ -174,8 +153,11 @@ export function OrganizationSelector({ onOrganizationSelect }: OrganizationSelec
           role: 'owner'
         });
 
-      console.log('User-organization link result:', { userOrgError });
-      if (userOrgError) throw userOrgError;
+      console.log('[CREATE ORG] User-organization link result:', { userOrgError });
+      if (userOrgError) {
+        console.error('[CREATE ORG] Failed to create membership:', userOrgError);
+        throw userOrgError;
+      }
 
       toast({
         title: "ארגון נוצר בהצלחה!",
@@ -184,9 +166,9 @@ export function OrganizationSelector({ onOrganizationSelect }: OrganizationSelec
 
       setNewOrgName('');
       setShowCreateForm(false);
-      fetchOrganizations();
+      await fetchOrganizations();
     } catch (error: any) {
-      console.error('Error creating organization:', error);
+      console.error('[CREATE ORG] Error creating organization:', error);
       toast({
         variant: "destructive",
         title: "שגיאה ביצירת ארגון",
@@ -208,7 +190,6 @@ export function OrganizationSelector({ onOrganizationSelect }: OrganizationSelec
     );
   }
 
-  // Block view if not authenticated
   if (!userProfile || !user || !session) {
     return (
       <div className="min-h-screen flex items-center justify-center">
