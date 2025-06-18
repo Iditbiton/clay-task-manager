@@ -1,16 +1,9 @@
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
-import type { Tables } from '@/integrations/supabase/types';
-import { generateUuid } from '@/utils/uuid';
-
-type Organization = Tables<'organizations'>;
-
-interface OrganizationWithRole extends Organization {
-  role: string;
-}
+import { fetchUserOrganizations, createNewOrganization } from '@/services/organizationService';
+import type { OrganizationWithRole } from '@/types/organization';
 
 export function useOrganizations() {
   const { userProfile, user, session } = useAuth();
@@ -22,54 +15,25 @@ export function useOrganizations() {
 
   useEffect(() => {
     if (userProfile && user && session) {
-      console.log('[ORG SELECTOR] Auth state ready, fetching organizations...');
+      console.log('[ORG HOOK] Auth state ready, fetching organizations...');
       fetchOrganizations();
     } else {
-      console.log('[ORG SELECTOR] Waiting for auth state:', { userProfile: !!userProfile, user: !!user, session: !!session });
+      console.log('[ORG HOOK] Waiting for auth state:', { userProfile: !!userProfile, user: !!user, session: !!session });
     }
   }, [userProfile, user, session]);
 
   const fetchOrganizations = async () => {
     if (!userProfile?.id) {
-      console.log('[ORG SELECTOR] No user profile available for fetching organizations');
+      console.log('[ORG HOOK] No user profile available for fetching organizations');
       setLoading(false);
       return;
     }
 
-    console.log('[ORG SELECTOR] Fetching organizations for user:', userProfile.id);
-    
     try {
-      // Fetch organizations with role using the new RLS policies
-      const { data, error } = await supabase
-        .from('organization_user')
-        .select(`
-          role,
-          organizations (
-            id,
-            name,
-            owner_id,
-            created_at,
-            updated_at
-          )
-        `)
-        .eq('user_id', userProfile.id);
-
-      console.log('[ORG SELECTOR] Organizations query result:', { data, error });
-      
-      if (error) {
-        console.error('[ORG SELECTOR] Error fetching organizations:', error);
-        throw error;
-      }
-      
-      const orgsWithRole = data?.map(item => ({
-        ...(item.organizations as Organization),
-        role: item.role
-      })).filter(org => org.id) || [];
-      
-      console.log('[ORG SELECTOR] Processed organizations:', orgsWithRole);
+      const orgsWithRole = await fetchUserOrganizations(userProfile.id);
       setOrganizations(orgsWithRole);
     } catch (error: any) {
-      console.error('[ORG SELECTOR] Error fetching organizations:', error);
+      console.error('[ORG HOOK] Error fetching organizations:', error);
       toast({
         variant: "destructive",
         title: "שגיאה",
@@ -90,80 +54,33 @@ export function useOrganizations() {
       return false;
     }
 
-    if (!newOrgName.trim()) {
-      toast({
-        variant: "destructive",
-        title: "שגיאה",
-        description: "אנא הכנס שם ארגון",
-      });
-      return false;
-    }
-
     setCreating(true);
-    console.log('[CREATE ORG] Creating organization:', newOrgName);
+    console.log('[ORG HOOK] Creating organization:', newOrgName);
 
     try {
-      // Generate UUID for the organization
-      const newOrgId = generateUuid();
-
-      // Step 1: Create the organization
-      const { data: orgData, error: orgError } = await supabase
-        .from('organizations')
-        .insert({
-          id: newOrgId,
-          name: newOrgName.trim(),
-          owner_id: userProfile.id
-        })
-        .select()
-        .single();
+      const result = await createNewOrganization(newOrgName, userProfile.id);
       
-      if (orgError) {
-        console.error('[CREATE ORG] Failed to create organization:', orgError);
-        throw new Error(`יצירת ארגון נכשלה: ${orgError.message}`);
-      }
-
-      console.log('[CREATE ORG] Organization created successfully');
-      
-      // Step 2: Add user as owner in organization_user
-      const { error: userOrgError } = await supabase
-        .from('organization_user')
-        .insert({
-          organization_id: newOrgId,
-          user_id: userProfile.id,
-          role: 'owner'
+      if (result.success) {
+        toast({
+          title: "ארגון נוצר בהצלחה!",
+          description: `הארגון "${newOrgName}" נוצר והוספת כבעלים`,
         });
-      
-      if (userOrgError) {
-        console.error('[CREATE ORG] Failed to create user-organization link:', userOrgError);
-        
-        // Try to clean up the organization if membership creation failed
-        const { error: cleanupError } = await supabase
-          .from('organizations')
-          .delete()
-          .eq('id', newOrgId);
-        
-        if (cleanupError) {
-          console.error('[CREATE ORG] Failed to cleanup organization:', cleanupError);
-        }
-        
-        throw new Error(`יצירת חברות בארגון נכשלה: ${userOrgError.message}`);
+        await fetchOrganizations();
+        return true;
+      } else {
+        toast({
+          variant: "destructive",
+          title: "שגיאה ביצירת ארגון",
+          description: result.error,
+        });
+        return false;
       }
-
-      console.log('[CREATE ORG] Organization and membership created successfully!');
-      
-      toast({
-        title: "ארגון נוצר בהצלחה!",
-        description: `הארגון "${newOrgName}" נוצר והוספת כבעלים`,
-      });
-
-      await fetchOrganizations();
-      return true;
     } catch (error: any) {
-      console.error('[CREATE ORG] Error during organization creation:', error);
+      console.error('[ORG HOOK] Unexpected error during organization creation:', error);
       toast({
         variant: "destructive",
         title: "שגיאה ביצירת ארגון",
-        description: error.message || "לא ניתן ליצור את הארגון",
+        description: "אירעה שגיאה לא צפויה",
       });
       return false;
     } finally {
