@@ -52,13 +52,19 @@ export function OrganizationSelector({ onOrganizationSelect }: OrganizationSelec
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
-    if (userProfile) {
+    if (userProfile && user && session) {
       fetchOrganizations();
     }
-  }, [userProfile]);
+  }, [userProfile, user, session]);
 
   const fetchOrganizations = async () => {
-    console.log('Fetching organizations for user:', userProfile?.id);
+    if (!userProfile?.id) {
+      console.log('No user profile available for fetching organizations');
+      setLoading(false);
+      return;
+    }
+
+    console.log('Fetching organizations for user:', userProfile.id);
     try {
       const { data, error } = await supabase
         .from('organization_user')
@@ -72,24 +78,28 @@ export function OrganizationSelector({ onOrganizationSelect }: OrganizationSelec
             updated_at
           )
         `)
-        .eq('user_id', userProfile?.id);
+        .eq('user_id', userProfile.id);
 
       console.log('Organizations query result:', { data, error });
-      if (error) throw error;
+      
+      if (error) {
+        console.error('Error fetching organizations:', error);
+        throw error;
+      }
       
       const orgsWithRole = data?.map(item => ({
         ...(item.organizations as Organization),
         role: item.role
-      })) || [];
+      })).filter(org => org.id) || [];
       
       console.log('Processed organizations:', orgsWithRole);
       setOrganizations(orgsWithRole);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching organizations:', error);
       toast({
         variant: "destructive",
         title: "שגיאה",
-        description: "לא ניתן לטעון את הארגונים",
+        description: error.message || "לא ניתן לטעון את הארגונים",
       });
     } finally {
       setLoading(false);
@@ -118,14 +128,13 @@ export function OrganizationSelector({ onOrganizationSelect }: OrganizationSelec
     setCreating(true);
     console.log('[CREATE ORG] Creating organization with name:', newOrgName);
     console.log('[CREATE ORG] User profile:', userProfile);
-    console.log('[CREATE ORG] User from auth:', user);
 
     try {
       // Generate UUID for the organization
       const newOrgId = generateUuid();
       console.log('[CREATE ORG] Generated org ID:', newOrgId);
 
-      // Create the organization
+      // Create the organization first
       const { data: orgData, error: orgError } = await supabase
         .from('organizations')
         .insert({
@@ -137,12 +146,13 @@ export function OrganizationSelector({ onOrganizationSelect }: OrganizationSelec
         .single();
 
       console.log('[CREATE ORG] Organization creation result:', { orgData, orgError });
+      
       if (orgError) {
         console.error('[CREATE ORG] Failed to create organization:', orgError);
         throw orgError;
       }
 
-      console.log('[CREATE ORG] Organization created successfully, now creating membership...');
+      console.log('[CREATE ORG] Organization created successfully, creating membership...');
       
       // Add user as owner in organization_user
       const { error: userOrgError } = await supabase
@@ -154,8 +164,11 @@ export function OrganizationSelector({ onOrganizationSelect }: OrganizationSelec
         });
 
       console.log('[CREATE ORG] User-organization link result:', { userOrgError });
+      
       if (userOrgError) {
         console.error('[CREATE ORG] Failed to create membership:', userOrgError);
+        // Try to clean up the organization if membership creation failed
+        await supabase.from('organizations').delete().eq('id', newOrgId);
         throw userOrgError;
       }
 
