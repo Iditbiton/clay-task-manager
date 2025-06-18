@@ -269,7 +269,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      get_current_user_id: {
+      current_user_uuid: {
         Args: Record<PropertyKey, never>
         Returns: string
       }

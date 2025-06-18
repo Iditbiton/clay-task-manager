@@ -37,24 +37,9 @@ export function useOrganizations() {
     }
 
     console.log('[ORG SELECTOR] Fetching organizations for user:', userProfile.id);
-    console.log('[ORG SELECTOR] User supabase_uid:', user?.id);
     
     try {
-      // Test the RLS policies by fetching organization_user first
-      console.log('[ORG SELECTOR] Testing organization_user access...');
-      const { data: orgUserTest, error: orgUserError } = await supabase
-        .from('organization_user')
-        .select('*')
-        .eq('user_id', userProfile.id);
-
-      console.log('[ORG SELECTOR] Organization_user test result:', { data: orgUserTest, error: orgUserError });
-
-      if (orgUserError) {
-        console.error('[ORG SELECTOR] Error accessing organization_user:', orgUserError);
-        throw orgUserError;
-      }
-
-      // Now fetch with join
+      // Fetch organizations with role using the corrected RLS policies
       const { data, error } = await supabase
         .from('organization_user')
         .select(`
@@ -102,7 +87,7 @@ export function useOrganizations() {
         title: "עליך להתחבר",
         description: "יש להתחבר לפני שניתן ליצור או לנהל ארגון.",
       });
-      return;
+      return false;
     }
 
     if (!newOrgName.trim()) {
@@ -111,13 +96,12 @@ export function useOrganizations() {
         title: "שגיאה",
         description: "אנא הכנס שם ארגון",
       });
-      return;
+      return false;
     }
 
     setCreating(true);
     console.log('[CREATE ORG] Creating organization with name:', newOrgName);
     console.log('[CREATE ORG] User profile:', userProfile);
-    console.log('[CREATE ORG] User from auth:', user);
 
     try {
       // Generate UUID for the organization
