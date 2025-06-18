@@ -82,6 +82,7 @@ export function useOrganizations() {
 
   const createOrganization = async (newOrgName: string) => {
     if (!user || !userProfile || !session) {
+      console.error('[CREATE ORG] Missing auth data:', { user: !!user, userProfile: !!userProfile, session: !!session });
       toast({
         variant: "destructive",
         title: "עליך להתחבר",
@@ -100,52 +101,87 @@ export function useOrganizations() {
     }
 
     setCreating(true);
-    console.log('[CREATE ORG] Creating organization with name:', newOrgName);
-    console.log('[CREATE ORG] User profile:', userProfile);
+    console.log('[CREATE ORG] Starting organization creation...');
+    console.log('[CREATE ORG] Organization name:', newOrgName);
+    console.log('[CREATE ORG] User profile ID:', userProfile.id);
+    console.log('[CREATE ORG] Supabase UID:', user.id);
 
     try {
       // Generate UUID for the organization
       const newOrgId = generateUuid();
       console.log('[CREATE ORG] Generated org ID:', newOrgId);
 
-      // Create the organization first
+      // Step 1: Create the organization
+      console.log('[CREATE ORG] Step 1: Creating organization record...');
       const { data: orgData, error: orgError } = await supabase
         .from('organizations')
         .insert({
           id: newOrgId,
           name: newOrgName.trim(),
-          owner_id: userProfile.id
+          owner_id: userProfile.id  // This should match get_user_id() function result
         })
         .select()
         .single();
 
-      console.log('[CREATE ORG] Organization creation result:', { orgData, orgError });
+      console.log('[CREATE ORG] Organization creation result:', { 
+        success: !orgError, 
+        data: orgData, 
+        error: orgError,
+        errorDetails: orgError ? {
+          message: orgError.message,
+          details: orgError.details,
+          hint: orgError.hint,
+          code: orgError.code
+        } : null
+      });
       
       if (orgError) {
         console.error('[CREATE ORG] Failed to create organization:', orgError);
-        throw orgError;
+        throw new Error(`יצירת ארגון נכשלה: ${orgError.message}`);
       }
 
-      console.log('[CREATE ORG] Organization created successfully, creating membership...');
+      console.log('[CREATE ORG] Organization created successfully:', orgData);
       
-      // Add user as owner in organization_user
+      // Step 2: Add user as owner in organization_user
+      console.log('[CREATE ORG] Step 2: Creating user-organization link...');
       const { error: userOrgError } = await supabase
         .from('organization_user')
         .insert({
           organization_id: newOrgId,
-          user_id: userProfile.id,
+          user_id: userProfile.id,  // This should match get_user_id() function result
           role: 'owner'
         });
 
-      console.log('[CREATE ORG] User-organization link result:', { userOrgError });
+      console.log('[CREATE ORG] User-organization link result:', { 
+        success: !userOrgError, 
+        error: userOrgError,
+        errorDetails: userOrgError ? {
+          message: userOrgError.message,
+          details: userOrgError.details,
+          hint: userOrgError.hint,
+          code: userOrgError.code
+        } : null
+      });
       
       if (userOrgError) {
-        console.error('[CREATE ORG] Failed to create membership:', userOrgError);
+        console.error('[CREATE ORG] Failed to create user-organization link:', userOrgError);
+        
         // Try to clean up the organization if membership creation failed
-        await supabase.from('organizations').delete().eq('id', newOrgId);
-        throw userOrgError;
+        console.log('[CREATE ORG] Cleaning up organization due to failed membership creation...');
+        const { error: cleanupError } = await supabase
+          .from('organizations')
+          .delete()
+          .eq('id', newOrgId);
+        
+        if (cleanupError) {
+          console.error('[CREATE ORG] Failed to cleanup organization:', cleanupError);
+        }
+        
+        throw new Error(`יצירת חברות בארגון נכשלה: ${userOrgError.message}`);
       }
 
+      console.log('[CREATE ORG] Organization and membership created successfully!');
+      
       toast({
         title: "ארגון נוצר בהצלחה!",
         description: `הארגון "${newOrgName}" נוצר והוספת כבעלים`,
@@ -154,7 +190,7 @@ export function useOrganizations() {
       await fetchOrganizations();
       return true;
     } catch (error: any) {
-      console.error('[CREATE ORG] Error creating organization:', error);
+      console.error('[CREATE ORG] Error during organization creation:', error);
       toast({
         variant: "destructive",
         title: "שגיאה ביצירת ארגון",
