@@ -2,12 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Building } from 'lucide-react';
 import type { Tables } from '@/integrations/supabase/types';
 import { OrganizationList } from './OrganizationList';
 import { NewOrganizationCard } from './NewOrganizationCard';
@@ -53,19 +48,39 @@ export function OrganizationSelector({ onOrganizationSelect }: OrganizationSelec
 
   useEffect(() => {
     if (userProfile && user && session) {
+      console.log('[ORG SELECTOR] Auth state ready, fetching organizations...');
       fetchOrganizations();
+    } else {
+      console.log('[ORG SELECTOR] Waiting for auth state:', { userProfile: !!userProfile, user: !!user, session: !!session });
     }
   }, [userProfile, user, session]);
 
   const fetchOrganizations = async () => {
     if (!userProfile?.id) {
-      console.log('No user profile available for fetching organizations');
+      console.log('[ORG SELECTOR] No user profile available for fetching organizations');
       setLoading(false);
       return;
     }
 
-    console.log('Fetching organizations for user:', userProfile.id);
+    console.log('[ORG SELECTOR] Fetching organizations for user:', userProfile.id);
+    console.log('[ORG SELECTOR] User supabase_uid:', user?.id);
+    
     try {
+      // Test the RLS policies by fetching organization_user first
+      console.log('[ORG SELECTOR] Testing organization_user access...');
+      const { data: orgUserTest, error: orgUserError } = await supabase
+        .from('organization_user')
+        .select('*')
+        .eq('user_id', userProfile.id);
+
+      console.log('[ORG SELECTOR] Organization_user test result:', { data: orgUserTest, error: orgUserError });
+
+      if (orgUserError) {
+        console.error('[ORG SELECTOR] Error accessing organization_user:', orgUserError);
+        throw orgUserError;
+      }
+
+      // Now fetch with join
       const { data, error } = await supabase
         .from('organization_user')
         .select(`
@@ -80,10 +95,10 @@ export function OrganizationSelector({ onOrganizationSelect }: OrganizationSelec
         `)
         .eq('user_id', userProfile.id);
 
-      console.log('Organizations query result:', { data, error });
+      console.log('[ORG SELECTOR] Organizations query result:', { data, error });
       
       if (error) {
-        console.error('Error fetching organizations:', error);
+        console.error('[ORG SELECTOR] Error fetching organizations:', error);
         throw error;
       }
       
@@ -92,10 +107,10 @@ export function OrganizationSelector({ onOrganizationSelect }: OrganizationSelec
         role: item.role
       })).filter(org => org.id) || [];
       
-      console.log('Processed organizations:', orgsWithRole);
+      console.log('[ORG SELECTOR] Processed organizations:', orgsWithRole);
       setOrganizations(orgsWithRole);
     } catch (error: any) {
-      console.error('Error fetching organizations:', error);
+      console.error('[ORG SELECTOR] Error fetching organizations:', error);
       toast({
         variant: "destructive",
         title: "שגיאה",
@@ -128,6 +143,7 @@ export function OrganizationSelector({ onOrganizationSelect }: OrganizationSelec
     setCreating(true);
     console.log('[CREATE ORG] Creating organization with name:', newOrgName);
     console.log('[CREATE ORG] User profile:', userProfile);
+    console.log('[CREATE ORG] User from auth:', user);
 
     try {
       // Generate UUID for the organization
