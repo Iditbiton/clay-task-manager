@@ -39,7 +39,7 @@ export function useOrganizations() {
     console.log('[ORG SELECTOR] Fetching organizations for user:', userProfile.id);
     
     try {
-      // Fetch organizations with role using the corrected RLS policies
+      // Fetch organizations with role using the new RLS policies
       const { data, error } = await supabase
         .from('organization_user')
         .select(`
