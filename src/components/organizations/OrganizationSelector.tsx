@@ -5,8 +5,9 @@ import { AuthGuard } from '@/components/auth/AuthGuard';
 import { LoadingScreen } from '@/components/ui/loading-screen';
 import { OrganizationList } from './OrganizationList';
 import { NewOrganizationCard } from './NewOrganizationCard';
+import { DatabaseDebugger } from '@/components/debug/DatabaseDebugger';
 import { Button } from '@/components/ui/button';
-import { RefreshCw, AlertCircle } from 'lucide-react';
+import { RefreshCw, AlertCircle, Bug } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface OrganizationSelectorProps {
@@ -18,6 +19,7 @@ export function OrganizationSelector({ onOrganizationSelect }: OrganizationSelec
   const { organizations, loading, creating, createOrganization, refetch, error } = useOrganizations();
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newOrgName, setNewOrgName] = useState('');
+  const [showDebugger, setShowDebugger] = useState(false);
 
   const handleCreateOrganization = async () => {
     if (!newOrgName.trim()) {
@@ -63,8 +65,24 @@ export function OrganizationSelector({ onOrganizationSelect }: OrganizationSelec
                 <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                 רענן רשימה
               </Button>
+              
+              <Button 
+                onClick={() => setShowDebugger(!showDebugger)} 
+                variant="outline" 
+                size="sm"
+                className="flex items-center gap-2"
+              >
+                <Bug className="h-4 w-4" />
+                {showDebugger ? 'הסתר אבחון' : 'הצג אבחון'}
+              </Button>
             </div>
           </div>
+
+          {showDebugger && (
+            <div className="mb-8">
+              <DatabaseDebugger />
+            </div>
+          )}
 
           {error && (
             <Alert variant="destructive" className="mb-6">
