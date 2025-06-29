@@ -6,7 +6,8 @@ import { LoadingScreen } from '@/components/ui/loading-screen';
 import { OrganizationList } from './OrganizationList';
 import { NewOrganizationCard } from './NewOrganizationCard';
 import { Button } from '@/components/ui/button';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, AlertCircle } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface OrganizationSelectorProps {
   onOrganizationSelect: (orgId: string) => void;
@@ -14,7 +15,7 @@ interface OrganizationSelectorProps {
 
 export function OrganizationSelector({ onOrganizationSelect }: OrganizationSelectorProps) {
   const { userProfile } = useAuth();
-  const { organizations, loading, creating, createOrganization, refetch } = useOrganizations();
+  const { organizations, loading, creating, createOrganization, refetch, error } = useOrganizations();
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newOrgName, setNewOrgName] = useState('');
 
@@ -57,14 +58,32 @@ export function OrganizationSelector({ onOrganizationSelect }: OrganizationSelec
                 variant="outline" 
                 size="sm"
                 className="flex items-center gap-2"
+                disabled={loading}
               >
-                <RefreshCw className="h-4 w-4" />
+                <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                 רענן רשימה
               </Button>
             </div>
           </div>
 
-          {organizations.length === 0 && !loading ? (
+          {error && (
+            <Alert variant="destructive" className="mb-6">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>
+                {error}
+                <Button 
+                  onClick={handleRefresh} 
+                  variant="outline" 
+                  size="sm" 
+                  className="ml-2"
+                >
+                  נסה שוב
+                </Button>
+              </AlertDescription>
+            </Alert>
+          )}
+
+          {organizations.length === 0 && !loading && !error ? (
             <div className="text-center py-12">
               <h2 className="text-xl font-semibold text-gray-700 mb-4">
                 אין לך ארגונים עדיין

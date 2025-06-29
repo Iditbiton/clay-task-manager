@@ -6,33 +6,48 @@ export const fetchUserOrganizations = async (userId: string): Promise<Organizati
   console.log('[ORG SERVICE] Fetching organizations for user:', userId);
   
   try {
-    const { data, error } = await supabase
+    // בדיקה ראשונה - האם המשתמש קיים בטבלת organization_user
+    const { data: membershipData, error: membershipError } = await supabase
       .from('organization_user')
-      .select(`
-        role,
-        organizations (
-          id,
-          name,
-          owner_id,
-          created_at,
-          updated_at
-        )
-      `)
+      .select('organization_id, role')
       .eq('user_id', userId);
 
-    console.log('[ORG SERVICE] Organizations query result:', { data, error });
-    
-    if (error) {
-      console.error('[ORG SERVICE] Error fetching organizations:', error);
-      throw new Error(`שגיאה בטעינת ארגונים: ${error.message}`);
+    console.log('[ORG SERVICE] User memberships:', { membershipData, membershipError });
+
+    if (membershipError) {
+      console.error('[ORG SERVICE] Error fetching user memberships:', membershipError);
+      throw new Error(`שגיאה בטעינת חברויות: ${membershipError.message}`);
     }
+
+    if (!membershipData || membershipData.length === 0) {
+      console.log('[ORG SERVICE] User has no organization memberships');
+      return [];
+    }
+
+    // קבלת פרטי הארגונים
+    const organizationIds = membershipData.map(m => m.organization_id);
+    const { data: organizationsData, error: organizationsError } = await supabase
+      .from('organizations')
+      .select('*')
+      .in('id', organizationIds);
+
+    console.log('[ORG SERVICE] Organizations data:', { organizationsData, organizationsError });
+
+    if (organizationsError) {
+      console.error('[ORG SERVICE] Error fetching organizations:', organizationsError);
+      throw new Error(`שגיאה בטעינת ארגונים: ${organizationsError.message}`);
+    }
+
+    // שילוב הנתונים
+    const orgsWithRole: OrganizationWithRole[] = organizationsData?.map(org => {
+      const membership = membershipData.find(m => m.organization_id === org.id);
+      return {
+        ...org,
+        role: membership?.role || 'member'
+      };
+    }) || [];
     
-    const orgsWithRole = data?.map(item => ({
-      ...(item.organizations as Organization),
-      role: item.role
-    })).filter(org => org.id) || [];
-    
-    console.log('[ORG SERVICE] Processed organizations:', orgsWithRole);
+    console.log('[ORG SERVICE] Final organizations with roles:', orgsWithRole);
     return orgsWithRole;
   } catch (error: any) {
     console.error('[ORG SERVICE] Exception in fetchUserOrganizations:', error);
@@ -128,5 +143,27 @@ export const validateUserAccess = async (userId: string, organizationId: string)
   } catch (error) {
     console.error('[ORG SERVICE] Exception in validateUserAccess:', error);
     return false;
+  }
+};
+
+// פונקציה לבדיקת חיבור למסד הנתונים
+export const testDatabaseConnection = async (): Promise<{ success: boolean; error?: string }> => {
+  try {
+    console.log('[ORG SERVICE] Testing database connection...');
+    const { data, error } = await supabase
+      .from('users')
+      .select('id')
+      .limit(1);
+
+    if (error) {
+      console.error('[ORG SERVICE] Database connection test failed:', error);
+      return { success: false, error: error.message };
+    }
+
+    console.log('[ORG SERVICE] Database connection test successful');
+    return { success: true };
+  } catch (error: any) {
+    console.error('[ORG SERVICE] Database connection test exception:', error);
+    return { success: false, error: error.message };
   }
 };

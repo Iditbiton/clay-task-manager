@@ -11,6 +11,7 @@ export function useOrganizations() {
   const [organizations, setOrganizations] = useState<OrganizationWithRole[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (userProfile && user && session) {
@@ -30,23 +31,30 @@ export function useOrganizations() {
     if (!userProfile?.id) {
       console.log('[ORG HOOK] No user profile available for fetching organizations');
       setLoading(false);
+      setError('פרופיל משתמש לא זמין');
       return;
     }
 
     setLoading(true);
+    setError(null);
+    
     try {
       console.log('[ORG HOOK] Fetching organizations for user:', userProfile.id);
       const orgsWithRole = await fetchUserOrganizations(userProfile.id);
       console.log('[ORG HOOK] Successfully fetched organizations:', orgsWithRole);
       setOrganizations(orgsWithRole);
+      setError(null);
     } catch (error: any) {
       console.error('[ORG HOOK] Error fetching organizations:', error);
+      const errorMessage = error.message || "לא ניתן לטעון את הארגונים. אנא רענן את הדף ונסה שוב.";
+      setError(errorMessage);
+      setOrganizations([]);
+      
       toast({
         variant: "destructive",
         title: "שגיאה בטעינת ארגונים",
-        description: error.message || "לא ניתן לטעון את הארגונים. אנא רענן את הדף ונסה שוב.",
+        description: errorMessage,
       });
-      setOrganizations([]);
     } finally {
       setLoading(false);
     }
@@ -111,6 +119,7 @@ export function useOrganizations() {
     organizations,
     loading,
     creating,
+    error,
     createOrganization,
     refetch: fetchOrganizations
   };
