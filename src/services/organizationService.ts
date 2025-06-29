@@ -24,6 +24,38 @@ export const testDatabaseConnection = async (): Promise<{ success: boolean; erro
   }
 };
 
+// בדיקת הרשאות המשתמש
+export const checkUserPermissions = async (userId: string): Promise<{ success: boolean; error?: string }> => {
+  try {
+    console.log('[ORG SERVICE] Checking user permissions for:', userId);
+    
+    // בדיקה שהמשתמש קיים
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('id, supabase_uid')
+      .eq('id', userId)
+      .single();
+
+    if (userError || !userData) {
+      return { success: false, error: 'משתמש לא נמצא במסד הנתונים' };
+    }
+
+    // בדיקת הפונקציה get_current_user_app_id
+    const { data: functionResult, error: functionError } = await supabase
+      .rpc('get_current_user_app_id');
+
+    if (functionError) {
+      return { success: false, error: `בעיה בפונקציית הרשאות: ${functionError.message}` };
+    }
+
+    console.log('[ORG SERVICE] User permissions check successful');
+    return { success: true };
+  } catch (error: any) {
+    console.error('[ORG SERVICE] User permissions check failed:', error);
+    return { success: false, error: error.message };
+  }
+};
+
 export const fetchUserOrganizations = async (userId: string): Promise<OrganizationWithRole[]> => {
   console.log('[ORG SERVICE] Fetching organizations for user:', userId);
   
@@ -38,7 +70,13 @@ export const fetchUserOrganizations = async (userId: string): Promise<Organizati
       throw new Error(`בעיית חיבור למסד הנתונים: ${connectionTest.error}`);
     }
 
-    // בדיקה שנייה - האם המשתמש קיים בטבלת organization_user
+    // בדיקה שנייה - בדיקת הרשאות המשתמש
+    const permissionsTest = await checkUserPermissions(userId);
+    if (!permissionsTest.success) {
+      throw new Error(`בעיית הרשאות: ${permissionsTest.error}`);
+    }
+
+    // בדיקה שלישית - האם המשתמש קיים בטבלת organization_user
     console.log('[ORG SERVICE] Checking user memberships...');
     const { data: membershipData, error: membershipError } = await supabase
       .from('organization_user')
@@ -67,7 +105,7 @@ export const fetchUserOrganizations = async (userId: string): Promise<Organizati
       return [];
     }
 
-    // בדיקה שלישית - קבלת פרטי הארגונים
+    // בדיקה רביעית - קבלת פרטי הארגונים
     console.log('[ORG SERVICE] Fetching organization details...');
     const organizationIds = membershipData.map(m => m.organization_id);
     
@@ -143,6 +181,12 @@ export const createNewOrganization = async (
       throw new Error(`בעיית חיבור למסד הנתונים: ${connectionTest.error}`);
     }
 
+    // בדיקת הרשאות המשתמש
+    const permissionsTest = await checkUserPermissions(userId);
+    if (!permissionsTest.success) {
+      throw new Error(`בעיית הרשאות: ${permissionsTest.error}`);
+    }
+
     // שלב 1: יצירת הארגון
     console.log('[ORG SERVICE] Step 1: Creating organization with ID:', newOrgId);
     const { data: orgData, error: orgError } = await supabase
@@ -159,7 +203,11 @@ export const createNewOrganization = async (
       console.error('[ORG SERVICE] Failed to create organization:', orgError);
       
       if (orgError.message.includes('RLS') || orgError.message.includes('policy')) {
-        throw new Error('אין הרשאה ליצור ארגון. אנא התחבר מחדש.');
+        throw new Error('אין הרשאה ליצור ארגון. אנא התחבר מחדש או פנה למנהל המערכת.');
+      }
+      
+      if (orgError.message.includes('duplicate') || orgError.message.includes('unique')) {
+        throw new Error('ארגון עם שם זה כבר קיים. אנא בחר שם אחר.');
       }
       
       throw new Error(`יצירת ארגון נכשלה: ${orgError.message}`);
@@ -187,12 +235,17 @@ export const createNewOrganization = async (
           .from('organizations')
           .delete()
           .eq('id', newOrgId);
+        console.log('[ORG SERVICE] Organization cleanup completed');
       } catch (cleanupError) {
         console.error('[ORG SERVICE] Failed to cleanup organization:', cleanupError);
       }
       
       if (userOrgError.message.includes('RLS') || userOrgError.message.includes('policy')) {
         throw new Error('בעיית הרשאות ביצירת חברות בארגון. אנא התחבר מחדש.');
+      }
+      
+      if (userOrgError.message.includes('duplicate') || userOrgError.message.includes('unique')) {
+        throw new Error('המשתמש כבר חבר בארגון זה.');
       }
       
       throw new Error(`יצירת חברות בארגון נכשלה: ${userOrgError.message}`);
