@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useOrganizations } from '@/hooks/useOrganizations';
@@ -6,6 +5,8 @@ import { AuthGuard } from '@/components/auth/AuthGuard';
 import { LoadingScreen } from '@/components/ui/loading-screen';
 import { OrganizationList } from './OrganizationList';
 import { NewOrganizationCard } from './NewOrganizationCard';
+import { Button } from '@/components/ui/button';
+import { RefreshCw } from 'lucide-react';
 
 interface OrganizationSelectorProps {
   onOrganizationSelect: (orgId: string) => void;
@@ -13,16 +14,24 @@ interface OrganizationSelectorProps {
 
 export function OrganizationSelector({ onOrganizationSelect }: OrganizationSelectorProps) {
   const { userProfile } = useAuth();
-  const { organizations, loading, creating, createOrganization } = useOrganizations();
+  const { organizations, loading, creating, createOrganization, refetch } = useOrganizations();
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newOrgName, setNewOrgName] = useState('');
 
   const handleCreateOrganization = async () => {
+    if (!newOrgName.trim()) {
+      return;
+    }
+
     const success = await createOrganization(newOrgName);
     if (success) {
       setNewOrgName('');
       setShowCreateForm(false);
     }
+  };
+
+  const handleRefresh = async () => {
+    await refetch();
   };
 
   if (loading) {
@@ -35,15 +44,42 @@ export function OrganizationSelector({ onOrganizationSelect }: OrganizationSelec
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-gray-900 mb-2">בחר ארגון</h1>
-            <p className="text-gray-600">בחר ארגון קיים או צור ארגון חדש</p>
+            <p className="text-gray-600 mb-4">בחר ארגון קיים או צור ארגון חדש</p>
             {userProfile && (
-              <p className="text-sm text-gray-500 mt-2">
-                משתמש: {userProfile.email} (ID: {userProfile.id})
+              <p className="text-sm text-gray-500 mb-4">
+                משתמש: {userProfile.name || userProfile.email}
               </p>
             )}
+            
+            <div className="flex justify-center gap-2 mb-6">
+              <Button 
+                onClick={handleRefresh} 
+                variant="outline" 
+                size="sm"
+                className="flex items-center gap-2"
+              >
+                <RefreshCw className="h-4 w-4" />
+                רענן רשימה
+              </Button>
+            </div>
           </div>
+
+          {organizations.length === 0 && !loading ? (
+            <div className="text-center py-12">
+              <h2 className="text-xl font-semibold text-gray-700 mb-4">
+                אין לך ארגונים עדיין
+              </h2>
+              <p className="text-gray-500 mb-6">
+                צור ארגון ראשון כדי להתחיל לנהל משימות
+              </p>
+            </div>
+          ) : null}
+
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            <OrganizationList organizations={organizations} onOrganizationSelect={onOrganizationSelect} />
+            <OrganizationList 
+              organizations={organizations} 
+              onOrganizationSelect={onOrganizationSelect} 
+            />
             <NewOrganizationCard
               creating={creating}
               showCreateForm={showCreateForm}

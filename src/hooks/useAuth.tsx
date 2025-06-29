@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
@@ -33,20 +32,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     try {
+      console.log('Starting sign out process...');
       cleanupAuthState();
-      // Attempt global sign out, but continue if it fails.
-      await supabase.auth.signOut({ scope: 'global' });
+      
+      // ניסיון התנתקות גלובלית
+      const { error } = await supabase.auth.signOut({ scope: 'global' });
+      if (error) {
+        console.warn('Sign out error (continuing with redirect):', error);
+      }
     } catch (error) {
       console.error('Error during sign out, continuing with redirect...', error);
     }
-    // ALWAYS redirect to ensure a clean state.
+    
+    // תמיד להפנות למסך התחברות
     window.location.href = '/auth';
   };
 
   const fetchUserProfile = async (user: User): Promise<UserProfile | null> => {
     console.log(`Fetching or creating user profile for user ID: ${user.id}`);
     try {
-      // First, try to fetch the existing profile
+      // ניסיון לטעון פרופיל קיים
       const { data: existingProfile, error: fetchError } = await supabase
         .from('users')
         .select('*')
@@ -63,14 +68,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return existingProfile;
       }
 
-      // If profile does not exist, create it
+      // יצירת פרופיל חדש אם לא קיים
       console.log(`User profile not found for ${user.id}, attempting to create one.`);
       const { data: newProfile, error: insertError } = await supabase
         .from('users')
         .insert({
           supabase_uid: user.id,
-          email: user.email,
-          name: user.user_metadata?.name || '',
+          email: user.email || '',
+          name: user.user_metadata?.name || user.user_metadata?.full_name || '',
         })
         .select()
         .single();
@@ -89,9 +94,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    setLoading(true);
     console.log('Setting up auth state listener...');
     
+    // קבלת הסשן הנוכחי
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        console.error('Error getting initial session:', error);
+      }
+      console.log('Initial session:', !!session);
+      setSession(session);
+      setUser(session?.user ?? null);
+      
+      if (session?.user) {
+        fetchUserProfile(session.user).then(profile => {
+          setUserProfile(profile);
+          if (!profile) {
+            console.warn("User authenticated, but profile data is missing and could not be created.");
+          }
+        }).finally(() => {
+          setLoading(false);
+        });
+      } else {
+        setUserProfile(null);
+        setLoading(false);
+      }
+    });
+    
+    // האזנה לשינויים בסטטוס האימות
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         console.log('Auth state changed:', event, 'Session:', !!session);
@@ -100,15 +129,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(currentUser);
         
         if (currentUser) {
-          // Defer Supabase calls with setTimeout to avoid deadlocks
+          // דחיית קריאות Supabase עם setTimeout למניעת deadlocks
           setTimeout(() => {
             fetchUserProfile(currentUser).then(profile => {
               setUserProfile(profile);
               if (!profile) {
-                console.warn("User authenticated, but profile data is missing and could not be created. The app might not function correctly without a profile.");
+                console.warn("User authenticated, but profile data is missing and could not be created.");
               }
             }).finally(() => {
-                setLoading(false);
+              setLoading(false);
             });
           }, 0);
         } else {
